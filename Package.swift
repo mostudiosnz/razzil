@@ -4,30 +4,30 @@
 import PackageDescription
 
 let package = Package(
-    name: "ObservableProduct",
-    platforms: [.iOS(.v15)],
+    name: "Razzil",
+    platforms: [.iOS(.v15), .macOS(.v12)],
     products: [
         // Products define the executables and libraries a package produces, and make them visible to other packages.
         .library(
-            name: "ObservableProduct",
-            targets: ["ObservableProduct"]),
+            name: "Razzil",
+            targets: ["Razzil"]),
     ],
     dependencies: [
         // Dependencies declare other packages that this package depends on.
-        .package(url: "https://github.com/mostudiosnz/firebase-logger", branch: "main"),
-        .package(url: "https://github.com/mostudiosnz/firebase-swiftui-tracker", branch: "main"),
+        .package(url: "https://github.com/mostudiosnz/raigor", branch: "main"),
+        .package(url: "https://github.com/mostudiosnz/gondar", branch: "main"),
     ],
     targets: [
         // Targets are the basic building blocks of a package. A target can define a module or a test suite.
         // Targets can depend on other targets in this package, and on products in packages this package depends on.
         .target(
-            name: "ObservableProduct",
+            name: "Razzil",
             dependencies: [
-                .product(name: "MOFirebaseLogger", package: "firebase-logger"),
-                .product(name: "MOFirebaseSwiftUITracker", package: "firebase-swiftui-tracker"),
+                .product(name: "Raigor", package: "raigor"),
+                .product(name: "Gondar", package: "gondar"),
             ]),
         .testTarget(
-            name: "ObservableProductTests",
-            dependencies: ["ObservableProduct"]),
+            name: "RazzilTests",
+            dependencies: ["Razzil"]),
     ]
 )
