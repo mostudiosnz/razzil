@@ -18,6 +18,14 @@ public protocol ObservableStore: ObservableObject, TransactionVerifying {
     init(logger: Logger)
 
     func setup()
+    
+    func restore()
 
     func processVerifiedTransaction(_ verifiedTransaction: Transaction)
+}
+
+public extension ObservableStore {
+    func restore() {
+        Task { try await AppStore.sync() }
+    }
 }
