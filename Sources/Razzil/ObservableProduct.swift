@@ -75,13 +75,13 @@ public extension ObservableProduct {
         switch state {
         case .initial, .purchased:
             newProductState = .purchased(verifiedTransaction)
-            updatePurchaseState(to: .purchased(verifiedTransaction))
         case .available(let product), .transacting(let product), .pending(let product), .failed(let product):
             newProductState = verifiedTransaction.revocationDate == nil
             ? .purchased(verifiedTransaction)
             : .failed(product)
         }
         updatePurchaseState(to: newProductState)
+        
         // Don't track purchase completed if original purchase date is outside 60 seconds
         guard case
             .purchased(let transaction) = newProductState,

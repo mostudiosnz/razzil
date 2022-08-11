@@ -62,6 +62,12 @@ struct ProductObject: Decodable {
     let attributes: ProductObjectAttributes
 }
 
+extension Product {
+    func latestOffer() throws -> ProductOfferObject? {
+        try JSONDecoder().decode(ProductObject.self, from: jsonRepresentation).attributes.offers.last
+    }
+}
+
 public protocol PurchaseTracking {
     var tracker: Tracker { get }
     func trackPurchaseStarted(for product: Product)
@@ -72,8 +78,8 @@ public extension PurchaseTracking {
     func trackPurchaseStarted(for product: Product) {
         var event = PurchaseStartedEvent()
         do {
-            let obj = try JSONDecoder().decode(ProductObject.self, from: product.jsonRepresentation)
-            event = obj.attributes.offers.last.map { ($0.currencyCode, $0.price) }.map(PurchaseStartedEvent.init) ?? event
+            let price = try product.latestOffer()
+            event = price.map { ($0.currencyCode, $0.price) }.map(PurchaseStartedEvent.init) ?? event
         } catch {
             (self as? TransactionVerifying)?.logger.error(error)
         }
