@@ -29,6 +29,22 @@ struct ProductOfferObject: Decodable {
 //    let priceFormatted: String
     let currencyCode: String
     let price: Double
+    
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: ProductOfferObject.Keys.self)
+        currencyCode = try container.decode(String.self, forKey: .currencyCode)
+        let priceString = try container.decode(String.self, forKey: .price)
+        if let priceValue = Double(priceString) {
+            price = priceValue
+        } else {
+            let context = DecodingError.Context(codingPath: decoder.codingPath, debugDescription: "Unable to cast \(priceString) to Double")
+            throw DecodingError.typeMismatch(Double.self, context)
+        }
+    }
+    
+    enum Keys: String, CodingKey {
+        case priceFormatted, currencyCode, price
+    }
 }
 
 struct ProductObjectAttributes: Decodable {
