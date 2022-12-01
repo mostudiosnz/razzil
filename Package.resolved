@@ -32,8 +32,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/mostudiosnz/gondar",
       "state" : {
-        "branch" : "main",
-        "revision" : "6f4e92f653d75831ee4a9c51883b470f899ae311"
+        "revision" : "6f4e92f653d75831ee4a9c51883b470f899ae311",
+        "version" : "1.0.0"
       }
     },
     {
@@ -113,8 +113,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/mostudiosnz/raigor",
       "state" : {
-        "branch" : "main",
-        "revision" : "b77edfce5d9344428260d8eb2c61632f6f97186c"
+        "revision" : "b77edfce5d9344428260d8eb2c61632f6f97186c",
+        "version" : "1.0.0"
       }
     },
     {
