@@ -1,5 +1,5 @@
 import XCTest
-@testable import ObservableProduct
+@testable import Razzil
 
 final class ObservableProductTests: XCTestCase {
     func testExample() throws {

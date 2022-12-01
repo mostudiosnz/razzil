@@ -1,13 +1,24 @@
 import Combine
 import StoreKit
 
+public enum PurchaseSource: Identifiable, Equatable {
+    case inAppPurchase(Transaction)
+    case localStorage
+    public var id: String {
+        switch self {
+        case .inAppPurchase(let transaction): return "in app purchase of \(transaction.productID)"
+        case .localStorage: return "purchase restored from local storage"
+        }
+    }
+}
+
 public enum ProductState: Identifiable, Equatable {
     case initial
     case available(Product)
     case transacting(Product)
     case pending(Product)
     case failed(Product)
-    case purchased(Transaction)
+    case purchased(PurchaseSource)
     
     public var id: String {
         switch self {
@@ -29,7 +40,7 @@ extension ProductState: CustomDebugStringConvertible {
         case .transacting(let product): return "transacting \(product.id)"
         case .pending(let product): return "pending \(product.id)"
         case .failed(let product): return "failed \(product.id)"
-        case .purchased(let transaction): return "purchased \(transaction.productID)"
+        case .purchased(let source): return "purchased \(source.id)"
         }
     }
 }
@@ -74,17 +85,18 @@ public extension ObservableProduct {
         let newProductState: ProductState
         switch state {
         case .initial, .purchased:
-            newProductState = .purchased(verifiedTransaction)
+            newProductState = .purchased(.inAppPurchase(verifiedTransaction))
         case .available(let product), .transacting(let product), .pending(let product), .failed(let product):
             newProductState = verifiedTransaction.revocationDate == nil
-            ? .purchased(verifiedTransaction)
+            ? .purchased(.inAppPurchase(verifiedTransaction))
             : .failed(product)
         }
         updatePurchaseState(to: newProductState)
         
         // Don't track purchase completed if original purchase date is outside 60 seconds
-        guard case
-            .purchased(let transaction) = newProductState,
+        guard
+            case .purchased(let source) = newProductState,
+            case .inAppPurchase(let transaction) = source,
             -(transaction.originalPurchaseDate.timeIntervalSinceNow) <= 60 else {
             return
         }
