@@ -70,18 +70,20 @@ extension Product {
 
 public protocol PurchaseTracking {
     var tracker: Tracker { get }
-    func trackPurchaseStarted(for product: Product)
+    func trackPurchaseStarted(for product: Product, in locale: Locale)
     func trackPurchaseCompleted(with transaction: Transaction)
 }
 
 public extension PurchaseTracking {
-    func trackPurchaseStarted(for product: Product) {
-        var event = PurchaseStartedEvent()
-        do {
-            let price = try product.latestOffer()
-            event = price.map { ($0.currencyCode, $0.price) }.map(PurchaseStartedEvent.init) ?? event
-        } catch {
-            (self as? TransactionVerifying)?.logger.error(error)
+    func trackPurchaseStarted(for product: Product, in locale: Locale = .current) {
+        let event: PurchaseStartedEvent
+        if #available(iOS 16, *), let currency = locale.currency {
+            let price = product.price
+            let value = NSDecimalNumber(decimal: price).doubleValue
+            let currencyId = currency.identifier
+            event = PurchaseStartedEvent(currency: currencyId, value: value)
+        } else {
+            event = PurchaseStartedEvent()
         }
         tracker.track(event: event)
     }
