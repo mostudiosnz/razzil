@@ -57,3 +57,11 @@ class ProductTwo: ObservableObject, ObservableProduct {
   @Published var state: ProductState
 }
 ```
+
+## Release
+
+Release using git tags. For example:
+```
+git tag -a "1.1.0" -m "update observable products to hold ids"
+git push origin 1.1.0
+```

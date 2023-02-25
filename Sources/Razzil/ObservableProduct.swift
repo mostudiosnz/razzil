@@ -47,7 +47,7 @@ extension ProductState: CustomDebugStringConvertible {
 
 public protocol ObservableProduct: AnyObject, TransactionVerifying, PurchaseTracking where ProductId: Identifiable, ProductId: RawRepresentable {
     associatedtype ProductId
-    var id: ProductId { get }
+    var ids: [ProductId] { get }
     var state: ProductState { get set }
 }
 
