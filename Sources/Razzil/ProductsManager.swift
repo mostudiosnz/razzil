@@ -67,7 +67,7 @@ public enum AppProduct: Sendable, Identifiable, Equatable, CustomDebugStringConv
 public protocol ProductsManager: Sendable {
     var initialized: Bool { get async }
     var products: [AppProduct] { get async }
-    nonisolated var updated: AnyPublisher<Void, Never> { get }
+    nonisolated var updated: PassthroughSubject<Void, Never> { get }
     @discardableResult func initialize() async -> Result<Void, InitializeError>
     @discardableResult func purchase(product: AppProduct) async -> Result<Void, PurchaseError>
 }
@@ -89,10 +89,7 @@ public actor DefaultProductsManager: ProductsManager {
     private let identifiers: [String]
     public private(set) var products: [AppProduct]
     public private(set) var initialized = false
-    public nonisolated var updated: AnyPublisher<Void, Never> {
-        subject.eraseToAnyPublisher()
-    }
-    private nonisolated let subject = PassthroughSubject<Void, Never>()
+    public nonisolated let updated = PassthroughSubject<Void, Never>()
     private var updates: Task<Void, Never>? // this Task never finishes (async sequence runs forever until cancelled)
     
     public init(ids identifiers: [String]) {
@@ -164,7 +161,7 @@ public actor DefaultProductsManager: ProductsManager {
     }
     
     func processVerified(transaction: Transaction) async {
-        var updated: [(Int, AppProduct)] = []
+        var updatedProducts: [(Int, AppProduct)] = []
         for (i, product) in products.enumerated() {
             guard product.id == transaction.productID else { continue }
             let p = await transaction.product ?? product.data
@@ -181,20 +178,20 @@ public actor DefaultProductsManager: ProductsManager {
             default:
                 new = .available(p)
             }
-            updated.append((i, new))
+            updatedProducts.append((i, new))
         }
         var hasUpdated = false
-        updated.forEach { (i, new) in
+        updatedProducts.forEach { (i, new) in
             if products[i] != new {
                 hasUpdated = true
             }
             products[i] = new
         }
-        await transaction.finish()
         if hasUpdated && initialized {
             // publish updates of new transactions
-            subject.send(())
+            updated.send(())
         }
+        await transaction.finish()
     }
 
     func processUnverified(transaction: Transaction, and error: VerificationResult<Transaction>.VerificationError) async {
