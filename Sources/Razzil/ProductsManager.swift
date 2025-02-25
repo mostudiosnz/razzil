@@ -191,7 +191,8 @@ public actor DefaultProductsManager: ProductsManager {
             products[i] = new
         }
         await transaction.finish()
-        if hasUpdated {
+        if hasUpdated && initialized {
+            // publish updates of new transactions
             subject.send(())
         }
     }
