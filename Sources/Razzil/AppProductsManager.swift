@@ -11,6 +11,6 @@ import SwiftUI
     public var wrappedValue: ProductsManager
     
     public init(ids identifiers: [String]) {
-        self.wrappedValue = DefaultProductsManager(for: identifiers)
+        self.wrappedValue = DefaultProductsManager(ids: identifiers)
     }
 }

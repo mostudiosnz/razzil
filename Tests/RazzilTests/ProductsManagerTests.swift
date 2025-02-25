@@ -11,7 +11,7 @@ import Testing
 struct ProductsManagerTests {
     var pm: ProductsManager
     init() async throws {
-        pm = DefaultProductsManager(for: ["id1", "id2"])
+        pm = DefaultProductsManager(ids: ["id1", "id2"])
         await pm.initialize()
     }
     

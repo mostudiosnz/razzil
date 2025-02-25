@@ -87,7 +87,7 @@ public actor DefaultProductsManager: ProductsManager {
     public private(set) var initialized = false
     private var updates: Task<Void, Never>? // this Task never finishes (async sequence runs forever until cancelled)
     
-    public init(for identifiers: [String]) {
+    public init(ids identifiers: [String]) {
         self.identifiers = identifiers
         self.products = []
     }

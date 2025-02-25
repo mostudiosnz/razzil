@@ -8,53 +8,57 @@ Install using Swift Package Manager.
 
 ## Usage
 
-All In-App Purchases consist around 2 concepts: Store & Product. 
+Either use the `AppProductsManager` property wrapper (easiest and recommended) or create your own `DefaultProductsManager` actor instance and manage it.
 
-It is suggested to create a singleton `Store` object and let it conform to the `ObservableStore` protocol.
+Using the `AppProductsManager` property wrapper:
 
-Next declare your Products and make references to the products from the store.
-
-```
-// Store.swift
-
-import Razzil
-import StoreKit
-
-final class Store: ObservableStore {
-  static let shared = Store()
-  @Published var state: StoreState = .initial
-  
-  // Reference the products
-  @Published var productOne = ProductOne()
-  @Published var productTwo = ProductTwo()
-  
-  init() {
-    // Call StoreKit APIs to load the products and also handle purchase restoration
-    ...
-  }
-}
-```
-
-And to declare the products:
-```
-// Products.swift
-
+```swift
 import Razzil
 
-enum AppProduct: String, Identifiable {
-  case productOne
-  case productTwo
-  var id: String { rawValue }
+struct MyViewHandlingProducts: View {
+    @AppProductsManager(ids: ["product_id1", "product_id2"]) var productsManager
+    @State var products: [AppProduct] = [] // keep a local state to make it easier to drive UI updates
+  
+    var body: some View {
+        VStack {
+            ForEach(products) { product in
+                Button(product.id) {
+                    Task { @MainActor in
+                        let result = await productsManager.purchase(product: product)
+                        switch result {
+                        case .success:
+                            // handle purchase success
+                            products = await productsManager.products // updating the state is a good idea
+                        case .failure(let error)
+                            // handle error handling of `Razzil.PurchaseError`
+                        }
+                    }
+                }
+                .disabled(!product.isAvailable)
+            }
+        }
+        .task {
+            let result = await productsManager.initialize() // the products manager must be initialized at some point before use
+            switch result {
+            case .success:
+                products = await productsManager.products
+            case .failure(let error):
+                // handle error handling of `Razzil.InitializeError`
+            }
+        }
+    }
 }
+```
 
-class ProductOne: ObservableObject, ObservableProduct {
-  let id: AppProduct
-  @Published var state: ProductState
-}
+Managing your own actor instace of `ProductsManager`:
+```swift
+import Razzil
 
-class ProductTwo: ObservableObject, ObservableProduct {
-  let id: AppProduct
-  @Published var state: ProductState
+class MyClassHandlingProducts {
+    var productsManager: ProductsManager
+    init() {
+        self.productsManager = DefaultProductsManager(ids: ["product_id1", "product_id2"])
+    }
 }
 ```
 
