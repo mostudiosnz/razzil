@@ -5,6 +5,7 @@
 //  Created by jk on 2025-02-25.
 //
 
+import Combine
 import StoreKit
 
 public enum AppProduct: Sendable, Identifiable, Equatable, CustomDebugStringConvertible {
@@ -66,6 +67,7 @@ public enum AppProduct: Sendable, Identifiable, Equatable, CustomDebugStringConv
 public protocol ProductsManager: Sendable {
     var initialized: Bool { get async }
     var products: [AppProduct] { get async }
+    nonisolated var updated: AnyPublisher<Void, Never> { get }
     @discardableResult func initialize() async -> Result<Void, InitializeError>
     @discardableResult func purchase(product: AppProduct) async -> Result<Void, PurchaseError>
 }
@@ -81,10 +83,16 @@ public enum PurchaseError: Error {
     case completeFailure(Error)
 }
 
+extension PassthroughSubject: @unchecked @retroactive Sendable {}
+
 public actor DefaultProductsManager: ProductsManager {
     private let identifiers: [String]
     public private(set) var products: [AppProduct]
     public private(set) var initialized = false
+    public nonisolated var updated: AnyPublisher<Void, Never> {
+        subject.eraseToAnyPublisher()
+    }
+    private nonisolated let subject = PassthroughSubject<Void, Never>()
     private var updates: Task<Void, Never>? // this Task never finishes (async sequence runs forever until cancelled)
     
     public init(ids identifiers: [String]) {
@@ -175,8 +183,16 @@ public actor DefaultProductsManager: ProductsManager {
             }
             updated.append((i, new))
         }
+        var hasUpdated = false
         updated.forEach { (i, new) in
+            if products[i] != new {
+                hasUpdated = true
+            }
             products[i] = new
+        }
+        await transaction.finish()
+        if hasUpdated {
+            subject.send(())
         }
     }
 
