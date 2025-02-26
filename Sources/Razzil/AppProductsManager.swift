@@ -7,10 +7,12 @@
 
 import SwiftUI
 
+public typealias APM = AppProductsManager
+
 @propertyWrapper public struct AppProductsManager: DynamicProperty {
     public var wrappedValue: ProductsManager
     
-    public init(ids identifiers: [String]) {
-        self.wrappedValue = DefaultProductsManager(ids: identifiers)
+    public init() {
+        self.wrappedValue = ProductsManager.shared
     }
 }

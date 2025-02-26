@@ -64,14 +64,6 @@ public enum AppProduct: Sendable, Identifiable, Equatable, CustomDebugStringConv
     }
 }
 
-public protocol ProductsManager: Sendable {
-    var initialized: Bool { get async }
-    var products: [AppProduct] { get async }
-    nonisolated var updated: PassthroughSubject<Bool, Never> { get }
-    @discardableResult func initialize() async -> Result<Void, InitializeError>
-    @discardableResult func purchase(product: AppProduct) async -> Result<Void, PurchaseError>
-}
-
 public enum InitializeError: Error {
     case fetchingProduct(StoreKitError)
     case completeFailure(Error)
@@ -85,19 +77,19 @@ public enum PurchaseError: Error {
 
 extension PassthroughSubject: @unchecked @retroactive Sendable {}
 
-public actor DefaultProductsManager: ProductsManager {
-    private let identifiers: [String]
+public actor ProductsManager: GlobalActor {
+    public static let shared = ProductsManager()
+    
     public private(set) var products: [AppProduct]
     public private(set) var initialized = false
-    public nonisolated let updated = PassthroughSubject<Bool, Never>()
+    public nonisolated let updated = PassthroughSubject<Void, Never>()
     private var updates: Task<Void, Never>? // this Task never finishes (async sequence runs forever until cancelled)
     
-    public init(ids identifiers: [String]) {
-        self.identifiers = identifiers
+    public init() {
         self.products = []
     }
     
-    public func initialize() async -> Result<Void, InitializeError> {
+    public func initialize(ids identifiers: [String]) async -> Result<Void, InitializeError> {
         do {
             // 1. fetch all products in available state
             let storefrontProducts = try await Product.products(for: identifiers)
@@ -187,9 +179,9 @@ public actor DefaultProductsManager: ProductsManager {
             }
             products[i] = new
         }
-        if hasUpdated {
+        if hasUpdated && initialized {
             // publish updates of new transactions
-            updated.send(initialized)
+            updated.send(())
         }
         await transaction.finish()
     }
