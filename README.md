@@ -8,7 +8,7 @@ Install using Swift Package Manager.
 
 ## Usage
 
-Either use the `AppProductsManager` property wrapper (easiest and recommended) or create your own `DefaultProductsManager` actor instance and manage it.
+Either use the `AppProductsManager` property wrapper (easiest and recommended) or manage the `ProductsManager` `GlobalActor` singleton yourself.
 
 Using the `AppProductsManager` property wrapper:
 
@@ -16,7 +16,7 @@ Using the `AppProductsManager` property wrapper:
 import Razzil
 
 struct MyViewHandlingProducts: View {
-    @AppProductsManager(ids: ["product_id1", "product_id2"]) var productsManager
+    @AppProductsManager var productsManager
     @State var products: [AppProduct] = [] // keep a local state to make it easier to drive UI updates
   
     var body: some View {
@@ -37,8 +37,14 @@ struct MyViewHandlingProducts: View {
                 .disabled(!product.isAvailable)
             }
         }
+        .onReceive(productsManager.updated.receive(on: DispatchQueue.main)) { _ in
+            // if using StoreKit provided UI, listen for the updated publisher
+            Task {
+                products = await productsManager.products
+            }
+        }
         .task {
-            let result = await productsManager.initialize() // the products manager must be initialized at some point before use
+            let result = await productsManager.initialize(ids: ["product_id1", "product_id2"]) // the products manager must be initialized at some point before use
             switch result {
             case .success:
                 products = await productsManager.products
@@ -50,14 +56,17 @@ struct MyViewHandlingProducts: View {
 }
 ```
 
-Managing your own actor instace of `ProductsManager`:
+Handling the `ProductsManager` `GlobalActor` singleton instance:
 ```swift
 import Razzil
 
 class MyClassHandlingProducts {
-    var productsManager: ProductsManager
-    init() {
-        self.productsManager = DefaultProductsManager(ids: ["product_id1", "product_id2"])
+    var productsManager = ProductsManager.shared
+    
+    func initialize() {
+        Task {
+            await productsManager.initialize(ids: ["product_id1", "product_id2"])
+        }
     }
 }
 ```
