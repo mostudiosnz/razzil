@@ -82,7 +82,7 @@ public actor ProductsManager: GlobalActor {
     
     public private(set) var products: [AppProduct]
     public private(set) var initialized = false
-    public let productUpdate = PassthroughSubject<(oldValue: AppProduct, newValue: AppProduct), Never>()
+    public nonisolated let productUpdate = PassthroughSubject<(oldValue: AppProduct, newValue: AppProduct), Never>()
     private var updates: Task<Void, Never>? // this Task never finishes (async sequence runs forever until cancelled)
     
     public init() {
