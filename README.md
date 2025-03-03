@@ -37,7 +37,7 @@ struct MyViewHandlingProducts: View {
                 .disabled(!product.isAvailable)
             }
         }
-        .onReceive(productsManager.updated.receive(on: DispatchQueue.main)) { _ in
+        .onReceive(productsManager.productUpdate.receive(on: DispatchQueue.main)) { (oldValue, newValue) in
             // if using StoreKit provided UI, listen for the updated publisher
             Task {
                 products = await productsManager.products

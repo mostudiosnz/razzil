@@ -82,7 +82,7 @@ public actor ProductsManager: GlobalActor {
     
     public private(set) var products: [AppProduct]
     public private(set) var initialized = false
-    public nonisolated let updated = PassthroughSubject<Void, Never>()
+    public let productUpdate = PassthroughSubject<(oldValue: AppProduct, newValue: AppProduct), Never>()
     private var updates: Task<Void, Never>? // this Task never finishes (async sequence runs forever until cancelled)
     
     public init() {
@@ -153,35 +153,31 @@ public actor ProductsManager: GlobalActor {
     }
     
     func processVerified(transaction: Transaction) async {
-        var updatedProducts: [(Int, AppProduct)] = []
+        struct Matching {
+            let i: Int
+            let product: AppProduct
+        }
+        var matching: Matching? = nil
         for (i, product) in products.enumerated() {
             guard product.id == transaction.productID else { continue }
             let p = await transaction.product ?? product.data
             let new: AppProduct
             switch transaction.productType {
-            case .nonConsumable:
-                fallthrough
-            case .consumable:
+            case .nonConsumable, .consumable:
                 new = transaction.isPurchased ? .purchased(p) : .available(p)
-            case .nonRenewable:
-                fallthrough
-            case .autoRenewable:
+            case .nonRenewable, .autoRenewable:
                 new = await transaction.isSubscribed ? .subscribed(p) : .available(p)
             default:
                 new = .available(p)
             }
-            updatedProducts.append((i, new))
+            matching = Matching(i: i, product: new)
         }
-        var hasUpdated = false
-        updatedProducts.forEach { (i, new) in
-            if products[i] != new {
-                hasUpdated = true
+        if let matching, matching.product != products[matching.i] {
+            if initialized {
+                // publish updates of new transactions
+                productUpdate.send((products[matching.i], matching.product))
             }
-            products[i] = new
-        }
-        if hasUpdated && initialized {
-            // publish updates of new transactions
-            updated.send(())
+            products[matching.i] = matching.product
         }
         await transaction.finish()
     }

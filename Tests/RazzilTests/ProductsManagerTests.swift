@@ -11,8 +11,8 @@ import Testing
 struct ProductsManagerTests {
     var pm: ProductsManager
     init() async throws {
-        pm = DefaultProductsManager(ids: ["id1", "id2"])
-        await pm.initialize()
+        pm = ProductsManager()
+        _ = await pm.initialize(ids: ["id1", "id2"])
     }
     
     @Test func example() async {
