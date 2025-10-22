@@ -77,7 +77,7 @@ public enum PurchaseError: Error {
 
 extension PassthroughSubject: @unchecked @retroactive Sendable {}
 
-public actor ProductsManager: GlobalActor {
+@globalActor public actor ProductsManager {
     public static let shared = ProductsManager()
     
     public private(set) var products: [AppProduct]
@@ -89,7 +89,7 @@ public actor ProductsManager: GlobalActor {
         self.products = []
     }
     
-    public func initialize(ids identifiers: [String]) async -> Result<Void, InitializeError> {
+    public func initialize(ids identifiers: [String]) async throws(InitializeError) {
         do {
             // 1. fetch all products in available state
             let storefrontProducts = try await Product.products(for: identifiers)
@@ -106,34 +106,34 @@ public actor ProductsManager: GlobalActor {
             }
             // 4. finalize initialization
             initialized = true
-            return .success(())
         } catch let storeKitError as StoreKitError {
-            return .failure(.fetchingProduct(storeKitError))
+            throw .fetchingProduct(storeKitError)
         } catch {
-            return .failure(.completeFailure(error))
+            throw .completeFailure(error)
         }
     }
     
-    public func purchase(product: AppProduct) async -> Result<Void, PurchaseError> {
+    public func purchase(product: AppProduct) async throws(PurchaseError) {
         do {
             let result = try await product.data.purchase()
             switch result {
             case .pending:
-                return .failure(.productIssue(.purchaseNotAllowed))
+                throw PurchaseError.productIssue(.purchaseNotAllowed)
             case .success(let result):
                 await processVerificationResult(result: result)
-                return .success(())
             case .userCancelled:
-                return .failure(.storeFailure(.userCancelled))
+                throw PurchaseError.storeFailure(.userCancelled)
             @unknown default:
-                return .failure(.completeFailure(StoreKitError.unknown))
+                throw PurchaseError.completeFailure(StoreKitError.unknown)
             }
+        } catch let purchaseError as PurchaseError {
+            throw purchaseError
         } catch let storeKitError as StoreKitError {
-            return .failure(.storeFailure(storeKitError))
+            throw .storeFailure(storeKitError)
         } catch let productPurchaseError as Product.PurchaseError {
-            return .failure(.productIssue(productPurchaseError))
+            throw .productIssue(productPurchaseError)
         } catch {
-            return .failure(.completeFailure(error))
+            throw .completeFailure(error)
         }
     }
     
