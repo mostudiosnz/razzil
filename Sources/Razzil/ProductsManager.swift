@@ -8,183 +8,144 @@
 import Combine
 import StoreKit
 
-public enum AppProduct: Sendable, Identifiable, Equatable, CustomDebugStringConvertible {
-    case purchased(Product)
-    case subscribed(Product)
-    case available(Product)
-    public var id: String {
-        switch self {
-        case .purchased(let product): return product.id
-        case .subscribed(let product): return product.id
-        case .available(let product): return product.id
-        }
-    }
-    public var data: Product {
-        switch self {
-        case .purchased(let product): return product
-        case .subscribed(let product): return product
-        case .available(let product): return product
-        }
-    }
-    public var isPurchased: Bool {
-        switch self {
-        case .purchased: return true
-        case .subscribed: return false
-        case .available: return false
-        }
-    }
-    public var isSubscribed: Bool {
-        switch self {
-        case .purchased: return false
-        case .subscribed: return true
-        case .available: return false
-        }
-    }
-    public var isAvailable: Bool {
-        switch self {
-        case .purchased: return false
-        case .subscribed: return false
-        case .available: return true
-        }
-    }
-    public static func == (lhs: AppProduct, rhs: AppProduct) -> Bool {
-        switch (lhs, rhs) {
-        case (.purchased(let l), .purchased(let r)): return l == r
-        case (.subscribed(let l), .subscribed(let r)): return l == r
-        case (.available(let l), .available(let r)): return l == r
-        default: return false
-        }
-    }
-    public var debugDescription: String {
-        switch self {
-        case .purchased(let product): return "purchased: " + product.id
-        case .subscribed(let product): return "subscribed: " + product.id
-        case .available(let product): return "available: " + product.id
-        }
-    }
-}
-
-public enum InitializeError: Error {
-    case fetchingProduct(StoreKitError)
-    case completeFailure(Error)
-}
-
-public enum PurchaseError: Error {
-    case storeFailure(StoreKitError)
-    case productIssue(Product.PurchaseError)
-    case completeFailure(Error)
-}
-
 extension PassthroughSubject: @unchecked @retroactive Sendable {}
 
-@globalActor public actor ProductsManager {
-    public static let shared = ProductsManager()
-    
+public enum PurchaseEvents {
+    /// This event only triggers if purchasing through `ProductsManager`
+    /// and does not trigger if using StoreKit provided SwiftUI purchase views.
+    case started(AppProduct)
+    /// Triggered when a product changes from either `available` or `scheduled` state to `active`
+    case purchased(AppProduct, Transaction)
+    /// Triggered when a product changes from either `active` or `scheduled` state back to `available`
+    case relisted(AppProduct)
+    /// This event only triggers if purchasing through `ProductsManager`
+    /// and does not trigger if using StoreKit provided SwiftUI purchase views.
+    case failed(AppProduct, ProductsManager.PurchaseError)
+}
+
+public actor ProductsManager {
+    public enum SyncError: Error {
+        case unknownProductId(id: String)
+    }
+    public enum PurchaseError: Error {
+        case storeFailure(StoreKitError)
+        case productIssue(Product.PurchaseError)
+        case completeFailure(Error)
+    }
     public private(set) var products: [AppProduct]
-    public private(set) var initialized = false
-    public nonisolated let productUpdate = PassthroughSubject<(oldValue: AppProduct, newValue: AppProduct), Never>()
+    private let ids: [String]
+    private let defaults: UserDefaults!
+    public nonisolated let purchaseEvents = PassthroughSubject<PurchaseEvents, Never>()
     private var updates: Task<Void, Never>? // this Task never finishes (async sequence runs forever until cancelled)
     
-    public init() {
+    public init(
+        productIds: [String],
+        suiteName: String = "app.mostudios.razzil"
+    ) {
         self.products = []
+        self.ids = productIds
+        self.defaults = UserDefaults(suiteName: suiteName)!
     }
     
-    public func initialize(ids identifiers: [String]) async throws(InitializeError) {
-        do {
-            // 1. fetch all products in available state
-            let storefrontProducts = try await Product.products(for: identifiers)
-            products = storefrontProducts.map { .available($0) }
-            // 2. fetch current entitlements and update products accordingly
-            for id in identifiers {
-                guard let entitlement = await Transaction.currentEntitlement(for: id)
-                else { continue }
-                await processVerificationResult(result: entitlement)
-            }
-            // 3. listen for any asynchronous updates (long running)
-            updates = Task(priority: .background) {
-                await listenForUpdates()
-            }
-            // 4. finalize initialization
-            initialized = true
-        } catch let storeKitError as StoreKitError {
-            throw .fetchingProduct(storeKitError)
-        } catch {
-            throw .completeFailure(error)
+    public func initialize() async throws(ProductsManager.SyncError) {
+        try await synchronize()
+        updates = Task(priority: .background) {
+            await listenForUpdates()
         }
     }
     
-    public func purchase(product: AppProduct) async throws(PurchaseError) {
+    public func purchase(product: AppProduct) async throws(ProductsManager.PurchaseError) {
+        purchaseEvents.send(.started(product))
+        guard case let .available(availableProduct) = product else {
+            let error = PurchaseError.productIssue(.purchaseNotAllowed)
+            purchaseEvents.send(.failed(product, error))
+            throw error
+        }
         do {
-            let result = try await product.data.purchase()
+            let result = try await availableProduct.purchase()
             switch result {
             case .pending:
                 throw PurchaseError.productIssue(.purchaseNotAllowed)
-            case .success(let result):
-                await processVerificationResult(result: result)
+            case .success:
+                try await synchronize()
             case .userCancelled:
                 throw PurchaseError.storeFailure(.userCancelled)
             @unknown default:
                 throw PurchaseError.completeFailure(StoreKitError.unknown)
             }
         } catch let purchaseError as PurchaseError {
+            purchaseEvents.send(.failed(product, purchaseError))
             throw purchaseError
         } catch let storeKitError as StoreKitError {
-            throw .storeFailure(storeKitError)
+            let purchaseError = PurchaseError.storeFailure(storeKitError)
+            purchaseEvents.send(.failed(product, purchaseError))
+            throw purchaseError
         } catch let productPurchaseError as Product.PurchaseError {
-            throw .productIssue(productPurchaseError)
+            let purchaseError = PurchaseError.productIssue(productPurchaseError)
+            purchaseEvents.send(.failed(product, purchaseError))
+            throw purchaseError
         } catch {
-            throw .completeFailure(error)
+            let purchaseError = PurchaseError.completeFailure(error)
+            purchaseEvents.send(.failed(product, purchaseError))
+            throw purchaseError
         }
     }
     
-    func listenForUpdates() async {
+    private func listenForUpdates() async {
         for await update in Transaction.updates {
-            await processVerificationResult(result: update)
+            let transaction = switch update {
+            case let .verified(transaction):
+                transaction
+            case let .unverified(transaction, _):
+                transaction
+            }
+            await transaction.finish()
+            try? await synchronize()
         }
     }
     
-    func processVerificationResult(result: VerificationResult<Transaction>) async {
-        switch result {
-        case .verified(let transaction):
-            await processVerified(transaction: transaction)
-        case .unverified(let transaction, let error):
-            await processUnverified(transaction: transaction, and: error)
+    private func synchronize() async throws(ProductsManager.SyncError) {
+        var events: [PurchaseEvents] = []
+        var updatedProducts: [AppProduct] = []
+        for id in ids {
+            if let active = await currentlyEntitled(id: id) {
+                let activeProduct = AppProduct.active(product: active.product, transaction: active.transaction)
+                if productHasUpdated(activeProduct, from: defaults) {
+                    events.append(.purchased(activeProduct, active.transaction))
+                }
+                updatedProducts.append(activeProduct)
+            } else if let available = await Product.product(id: id) {
+                let availableProduct = AppProduct.available(product: available)
+                if productHasUpdated(availableProduct, from: defaults) {
+                    events.append(.relisted(availableProduct))
+                }
+                updatedProducts.append(availableProduct)
+            } else {
+                throw .unknownProductId(id: id)
+            }
         }
+        products = updatedProducts
+        events.forEach(purchaseEvents.send)
+        save(into: defaults)
     }
     
-    func processVerified(transaction: Transaction) async {
-        struct Matching {
-            let i: Int
-            let product: AppProduct
-        }
-        var matching: Matching? = nil
-        for (i, product) in products.enumerated() {
-            guard product.id == transaction.productID else { continue }
-            let p = await transaction.product ?? product.data
-            let new: AppProduct
-            switch transaction.productType {
-            case .nonConsumable, .consumable:
-                new = transaction.isPurchased ? .purchased(p) : .available(p)
-            case .nonRenewable, .autoRenewable:
-                new = await transaction.isSubscribed ? .subscribed(p) : .available(p)
-            default:
-                new = .available(p)
+    private func currentlyEntitled(id: String) async -> (product: Product, transaction: Transaction)? {
+        var transaction: Transaction?
+        if #available(iOS 18.4, *) {
+            for await result in Transaction.currentEntitlements(for: id) {
+                if transaction != nil { continue }
+                transaction = result.unsafePayloadValue
             }
-            matching = Matching(i: i, product: new)
+        } else {
+            let result = await Transaction.currentEntitlement(for: id)
+            transaction = result?.unsafePayloadValue
         }
-        if let matching, matching.product != products[matching.i] {
-            if initialized {
-                // publish updates of new transactions
-                productUpdate.send((products[matching.i], matching.product))
-            }
-            products[matching.i] = matching.product
-        }
-        await transaction.finish()
-    }
-
-    func processUnverified(transaction: Transaction, and error: VerificationResult<Transaction>.VerificationError) async {
-        /// just handle unverified transactions same as verified. not too worried about fraud at the moment
-        await processVerified(transaction: transaction)
+        guard
+            let transaction,
+            await transaction.isActive,
+            let product = await transaction.product
+        else { return nil }
+        return (product: product, transaction: transaction)
     }
 }
 
@@ -208,14 +169,13 @@ private extension Optional where Wrapped == Date {
 }
 
 private extension Transaction {
-    var isPurchased: Bool {
-        return !revocationDate.isExpired && !expirationDate.isExpired
-    }
-    var isSubscribed: Bool {
+    var isActive: Bool {
         get async {
             guard let status = await subscriptionStatus else {
-                return false
+                // active for non-subscription purchases
+                return !revocationDate.isExpired && !expirationDate.isExpired
             }
+            // active for subscriptions
             switch status.state {
             case .subscribed: return true
             default: return false
@@ -224,8 +184,18 @@ private extension Transaction {
     }
     var product: Product? {
         get async {
-            let products = try? await Product.products(for: [productID])
-            return products?.first
+            await Product.product(id: productID)
+        }
+    }
+}
+
+private extension Product {
+    static func product(id: String) async -> Product? {
+        do {
+            let products = try await Product.products(for: [id])
+            return products.first
+        } catch {
+            return nil
         }
     }
 }

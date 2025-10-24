@@ -11,12 +11,13 @@ import Testing
 struct ProductsManagerTests {
     var pm: ProductsManager
     init() async throws {
-        pm = ProductsManager()
-        _ = await pm.initialize(ids: ["id1", "id2"])
+        pm = ProductsManager(productIds: ["id1", "id2"])
     }
     
-    @Test func example() async {
-        await #expect(pm.initialized == true)
+    @Test func testInitialize() async {
+        await #expect(throws: SynchronizeError.self, "unknown product id") {
+            try await pm.initialize()
+        }
         await #expect(pm.products.count == 0)
     }
 }
