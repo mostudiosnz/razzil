@@ -9,15 +9,15 @@ import Testing
 @testable import Razzil
 
 struct ProductsManagerTests {
-    var pm: ProductsManager
+    var store: Store
     init() async throws {
-        pm = ProductsManager(productIds: ["id1", "id2"])
+        store = Store(productIds: ["id1", "id2"])
     }
     
     @Test func testInitialize() async {
-        await #expect(throws: SynchronizeError.self, "unknown product id") {
-            try await pm.initialize()
+        await #expect(throws: Store.SyncError.self, "unknown product id") {
+            try await store.initialize()
         }
-        await #expect(pm.products.count == 0)
+        await #expect(store.products.count == 0)
     }
 }

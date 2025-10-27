@@ -1,5 +1,5 @@
 //
-//  ProductsManager.swift
+//  Store.swift
 //  Razzil
 //
 //  Created by jk on 2025-02-25.
@@ -13,17 +13,17 @@ extension PassthroughSubject: @unchecked @retroactive Sendable {}
 public enum PurchaseEvents {
     /// This event only triggers if purchasing through `ProductsManager`
     /// and does not trigger if using StoreKit provided SwiftUI purchase views.
-    case started(AppProduct)
+    case started(StoreProduct)
     /// Triggered when a product changes from either `available` or `scheduled` state to `active`
-    case purchased(AppProduct, Transaction)
+    case purchased(StoreProduct, Transaction)
     /// Triggered when a product changes from either `active` or `scheduled` state back to `available`
-    case relisted(AppProduct)
+    case relisted(StoreProduct)
     /// This event only triggers if purchasing through `ProductsManager`
     /// and does not trigger if using StoreKit provided SwiftUI purchase views.
-    case failed(AppProduct, ProductsManager.PurchaseError)
+    case failed(StoreProduct, Store.PurchaseError)
 }
 
-public actor ProductsManager {
+public actor Store {
     public enum SyncError: Error {
         case unknownProductId(id: String)
     }
@@ -32,7 +32,7 @@ public actor ProductsManager {
         case productIssue(Product.PurchaseError)
         case completeFailure(Error)
     }
-    public private(set) var products: [AppProduct]
+    public private(set) var products: [StoreProduct]
     private let ids: [String]
     private let defaults: UserDefaults!
     public nonisolated let purchaseEvents = PassthroughSubject<PurchaseEvents, Never>()
@@ -47,14 +47,14 @@ public actor ProductsManager {
         self.defaults = UserDefaults(suiteName: suiteName)!
     }
     
-    public func initialize() async throws(ProductsManager.SyncError) {
+    public func initialize() async throws(Store.SyncError) {
         try await synchronize()
         updates = Task(priority: .background) {
             await listenForUpdates()
         }
     }
     
-    public func purchase(product: AppProduct) async throws(ProductsManager.PurchaseError) {
+    public func purchase(product: StoreProduct) async throws(Store.PurchaseError) {
         purchaseEvents.send(.started(product))
         guard case let .available(availableProduct) = product else {
             let error = PurchaseError.productIssue(.purchaseNotAllowed)
@@ -104,18 +104,18 @@ public actor ProductsManager {
         }
     }
     
-    private func synchronize() async throws(ProductsManager.SyncError) {
+    private func synchronize() async throws(Store.SyncError) {
         var events: [PurchaseEvents] = []
-        var updatedProducts: [AppProduct] = []
+        var updatedProducts: [StoreProduct] = []
         for id in ids {
             if let active = await currentlyEntitled(id: id) {
-                let activeProduct = AppProduct.active(product: active.product, transaction: active.transaction)
+                let activeProduct = StoreProduct.active(product: active.product, transaction: active.transaction)
                 if productHasUpdated(activeProduct, from: defaults) {
                     events.append(.purchased(activeProduct, active.transaction))
                 }
                 updatedProducts.append(activeProduct)
             } else if let available = await Product.product(id: id) {
-                let availableProduct = AppProduct.available(product: available)
+                let availableProduct = StoreProduct.available(product: available)
                 if productHasUpdated(availableProduct, from: defaults) {
                     events.append(.relisted(availableProduct))
                 }

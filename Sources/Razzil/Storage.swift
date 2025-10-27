@@ -10,7 +10,7 @@ import Foundation
 fileprivate enum StoredStatus: Codable, Equatable {
     case available
     case active(purchaseDate: Date)
-    init(product: AppProduct) {
+    init(product: StoreProduct) {
         switch product {
         case .available: self = .available
         case let .active(_, transaction): self = .active(purchaseDate: transaction.purchaseDate)
@@ -18,9 +18,9 @@ fileprivate enum StoredStatus: Codable, Equatable {
     }
 }
 
-extension ProductsManager {
+extension Store {
     func productHasUpdated(
-        _ product: AppProduct,
+        _ product: StoreProduct,
         from defaults: UserDefaults,
     ) -> Bool {
         guard let data = defaults.data(forKey: product.id) else {

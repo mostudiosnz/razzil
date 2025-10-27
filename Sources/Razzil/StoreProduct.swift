@@ -1,5 +1,5 @@
 //
-//  AppProduct.swift
+//  StoreProduct.swift
 //  Razzil
 //
 //  Created by jk on 2025-10-24.
@@ -7,7 +7,7 @@
 
 import StoreKit
 
-public enum AppProduct: Sendable, Identifiable, Equatable, Hashable, CustomDebugStringConvertible {
+public enum StoreProduct: Sendable, Identifiable, Equatable, Hashable, CustomDebugStringConvertible {
     case available(product: Product)
     case active(product: Product, transaction: Transaction)
     public var id: String {
@@ -28,7 +28,7 @@ public enum AppProduct: Sendable, Identifiable, Equatable, Hashable, CustomDebug
         case .available: return false
         }
     }
-    public static func == (lhs: AppProduct, rhs: AppProduct) -> Bool {
+    public static func == (lhs: StoreProduct, rhs: StoreProduct) -> Bool {
         switch (lhs, rhs) {
             case let (.available(l), .available(r)): return l == r
             case let (.active(lp, lt), .active(rp, rt)): return lp == rp && lt == rt

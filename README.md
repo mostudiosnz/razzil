@@ -17,7 +17,7 @@ import Razzil
 
 struct MyViewHandlingProducts: View {
     @AppProductsManager var productsManager
-    @State var products: [AppProduct] = [] // keep a local state to make it easier to drive UI updates
+    @State var products: [StoreProduct] = [] // keep a local state to make it easier to drive UI updates
   
     var body: some View {
         VStack {
