@@ -11,14 +11,14 @@ import StoreKit
 extension PassthroughSubject: @unchecked @retroactive Sendable {}
 
 public enum PurchaseEvents {
-    /// This event only triggers if purchasing through `ProductsManager`
+    /// This event only triggers if purchasing through `Store`
     /// and does not trigger if using StoreKit provided SwiftUI purchase views.
     case started(StoreProduct)
-    /// Triggered when a product changes from either `available` or `scheduled` state to `active`
+    /// Triggered when a product changes from `available` to `active`
     case purchased(StoreProduct, Transaction)
-    /// Triggered when a product changes from either `active` or `scheduled` state back to `available`
+    /// Triggered when a product changes from either `active`  to `available`
     case relisted(StoreProduct)
-    /// This event only triggers if purchasing through `ProductsManager`
+    /// This event only triggers if purchasing through `Store`
     /// and does not trigger if using StoreKit provided SwiftUI purchase views.
     case failed(StoreProduct, Store.PurchaseError)
 }
