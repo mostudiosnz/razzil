@@ -1,5 +1,5 @@
 //
-//  ProductsManagerTests.swift
+//  StoreTests.swift
 //  Razzil
 //
 //  Created by jk on 2025-02-25.
@@ -8,7 +8,7 @@
 import Testing
 @testable import Razzil
 
-struct ProductsManagerTests {
+struct StoreTests {
     var store: Store
     init() async throws {
         store = Store(productIds: ["id1", "id2"])
