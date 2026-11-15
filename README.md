@@ -8,6 +8,21 @@ Install using Swift Package Manager.
 
 ## Usage
 
+#### Check subscription access
+
+```swift
+import Razzil
+
+let subscription = Subscription(productIDs: ["monthly.product.id", "yearly.product.id"])
+let isSubscribed = await subscription.isSubscribed
+```
+
+Configure each app with the auto-renewable product IDs that grant access, including legacy IDs that are still honored. The check uses verified StoreKit entitlements and includes billing grace periods and eligible App Store Family Sharing. Existing one-time purchases can continue to grant access through the app's purchase rules.
+
+Read `isSubscribed` at launch and again after a successful purchase or restore. Apps that refresh while running can also read it from their existing StoreKit transaction listener or on foreground entry. The check queries StoreKit on each read and works independently of `Store.initialize()`. The app's existing purchase flow still owns transaction completion.
+
+For a shared child profile, use this Boolean for the current App Store account's subscription entitlement. Use the app's profile authorization to decide whether each caregiver has access.
+
 #### With SwiftUI environment
 
 ```swift

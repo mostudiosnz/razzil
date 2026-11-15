@@ -131,7 +131,7 @@ public actor Store {
     
     private func currentlyEntitled(id: String) async -> (product: Product, transaction: Transaction)? {
         var transaction: Transaction?
-        if #available(iOS 18.4, *) {
+        if #available(iOS 18.4, macOS 15.4, tvOS 18.4, watchOS 11.4, visionOS 2.4, *) {
             for await result in Transaction.currentEntitlements(for: id) {
                 if transaction != nil { continue }
                 transaction = result.unsafePayloadValue
