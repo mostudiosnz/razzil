@@ -18,8 +18,7 @@ public struct Subscription: Sendable {
 
             for await result in Transaction.currentEntitlements {
                 if case .verified(let transaction) = result,
-                   transaction.productType == .autoRenewable,
-                   productIDs.contains(transaction.productID),
+                   matches(transaction),
                    transaction.revocationDate == nil,
                    !transaction.isUpgraded {
                     return true
@@ -27,5 +26,26 @@ public struct Subscription: Sendable {
             }
             return false
         }
+    }
+
+    /// Delivers the current subscription status for each verified matching transaction update.
+    /// Read `isSubscribed` separately for the initial value. This method runs until its task is cancelled.
+    /// Apply the status inside `onUpdate`. Razzil finishes the transaction after the callback returns.
+    public func observeUpdates(_ onUpdate: @Sendable (Bool) async -> Void) async {
+        guard !productIDs.isEmpty else { return }
+
+        for await result in Transaction.updates {
+            guard case .verified(let transaction) = result, matches(transaction) else { continue }
+
+            let subscribed = await isSubscribed
+            guard !Task.isCancelled else { return }
+            await onUpdate(subscribed)
+            guard !Task.isCancelled else { return }
+            await transaction.finish()
+        }
+    }
+
+    private func matches(_ transaction: Transaction) -> Bool {
+        transaction.productType == .autoRenewable && productIDs.contains(transaction.productID)
     }
 }
